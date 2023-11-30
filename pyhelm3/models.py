@@ -14,6 +14,7 @@ from pydantic import (
     FilePath,
     AnyUrl as PydanticAnyUrl,
     HttpUrl as PydanticHttpUrl,
+    UrlConstraints as PydanticUrlConstraints,
     constr,
     field_validator
 )
@@ -61,6 +62,10 @@ def validate_str_as(validate_type):
 #: Annotated string types for URLs
 AnyUrl = t.Annotated[str, AfterValidator(validate_str_as(PydanticAnyUrl))]
 HttpUrl = t.Annotated[str, AfterValidator(validate_str_as(PydanticHttpUrl))]
+OciUrl = t.Annotated[
+    str,
+    AfterValidator(validate_str_as(t.Annotated[PydanticAnyUrl, PydanticUrlConstraints(allowed_schemes=["oci"], default_port=5000)]))
+]
 
 
 class ChartDependency(BaseModel):
@@ -195,7 +200,7 @@ class Chart(ModelWithCommand):
     """
     Model for a reference to a chart.
     """
-    ref: t.Union[DirectoryPath, FilePath, HttpUrl, Name] = Field(
+    ref: t.Union[DirectoryPath, FilePath, HttpUrl, OciUrl, Name] = Field(
         ...,
         description = (
             "The chart reference. "
@@ -229,7 +234,7 @@ class Chart(ModelWithCommand):
         """
         method = getattr(self._command, command_method)
         # We only need the kwargs if the ref is not a direct reference
-        if isinstance(self.ref, (pathlib.Path, HttpUrl)):
+        if isinstance(self.ref, (pathlib.Path, HttpUrl, OciUrl)):
             return await method(self.ref)
         else:
             return await method(self.ref, repo = self.repo, version = self.metadata.version)
